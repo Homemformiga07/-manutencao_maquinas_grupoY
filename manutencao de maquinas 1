@@ -1,0 +1,196 @@
+# ============================================================
+#   SISTEMA DE MANUTENÇÃO DE MÁQUINAS - PROJETO INTEGRADOR
+#   Engenharia Mecânica - Computação 1
+#   Módulo Extra Escolhido: Custos de Manutenção
+# ============================================================
+
+# -----------------------------
+# 1. LISTA DE MÁQUINAS
+# -----------------------------
+maquinas = [
+    ["Torno CNC", "operando", 72.5, "05/11/2025"],
+    ["Prensa Hidráulica", "parada", 30.0, "01/11/2025"],
+    ["Compressor de Ar", "operando", 45.0, "04/11/2025"],
+    ["Retífica", "operando", 60.0, "02/11/2025"]
+]
+
+# -----------------------------
+# 2. HISTÓRICO DE MANUTENÇÃO
+# -----------------------------
+historico = {
+    "Torno CNC": ["Troca de óleo - 01/11/2025", "Limpeza - 03/11/2025"],
+    "Prensa Hidráulica": ["Troca de mangueira - 02/11/2025"]
+}
+
+# -----------------------------
+# 3. MÓDULO EXTRA – CUSTOS
+# -----------------------------
+custos = {
+    "troca de óleo": 120.0,
+    "limpeza": 60.0,
+    "troca de rolamento": 300.0,
+    "troca de filtro": 80.0,
+    "regulagem": 50.0
+}
+
+custo_total = {}  # armazena custo acumulado por máquina
+
+
+def adicionar_manutencao(nome_maquina, descricao):
+    if nome_maquina not in historico:
+        historico[nome_maquina] = []
+    historico[nome_maquina].append(descricao)
+
+    # custo automático
+    servico = descricao.lower().split("-")[0].strip()
+    if servico in custos:
+        valor = custos[servico]
+    else:
+        valor = 100.0  # custo padrão caso seja algo novo
+
+    if nome_maquina not in custo_total:
+        custo_total[nome_maquina] = 0
+
+    custo_total[nome_maquina] += valor
+    print(f"✔ Manutenção registrada! Custo somado: R$ {valor:.2f}")
+
+
+def gerar_relatorio_custos(nome="custos_manutencao.txt"):
+    with open(nome, "w") as arq:
+        arq.write("RELATÓRIO DE CUSTOS DE MANUTENÇÃO\n\n")
+        total_geral = 0
+
+        for maquina, valor in custo_total.items():
+            arq.write(f"{maquina}: R$ {valor:.2f}\n")
+            total_geral += valor
+
+        arq.write("\nTOTAL GERAL: R$ {:.2f}\n".format(total_geral))
+
+    print("📄 Relatório gerado:", nome)
+
+
+# -----------------------------
+# 4. FUNÇÕES DO SISTEMA BASE
+# -----------------------------
+def registrar_medicao(linha):
+    partes = linha.split(",")
+    nome = partes[0].strip()
+    temperatura = float(partes[1].strip())
+    status = partes[2].strip()
+
+    for m in maquinas:
+        if m[0] == nome:
+            m[1] = status
+            m[2] = temperatura
+            break
+
+
+def salvar_dados_maquinas(lista_maquinas, nome_arquivo="dados_maquinas.txt"):
+    with open(nome_arquivo, "w") as arq:
+        for m in lista_maquinas:
+            linha = f"{m[0]};{m[1]};{m[2]};{m[3]}\n"
+            arq.write(linha)
+    print("Dados salvos em", nome_arquivo)
+
+
+def carregar_dados_maquinas(nome_arquivo="dados_maquinas.txt"):
+    maquinas_lidas = []
+    try:
+        with open(nome_arquivo, "r") as arq:
+            for linha in arq:
+                partes = linha.strip().split(";")
+                nome = partes[0]
+                status = partes[1]
+                temperatura = float(partes[2])
+                ultima = partes[3]
+                maquinas_lidas.append([nome, status, temperatura, ultima])
+    except FileNotFoundError:
+        print("Arquivo não encontrado.")
+    return maquinas_lidas
+
+
+def gerar_relatorio(nome_arquivo="relatorio_final.txt"):
+    maquina_quente = max(maquinas, key=lambda x: x[2])
+
+    with open(nome_arquivo, "w") as arq:
+        arq.write("RELATÓRIO DE MÁQUINAS\n\n")
+        arq.write(f"Máquina mais quente: {maquina_quente[0]} ({maquina_quente[2]} °C)\n\n")
+
+        arq.write("Máquinas paradas ou em manutenção:\n")
+        for m in maquinas:
+            if m[1] in ["parada", "em manutenção"]:
+                arq.write(f"- {m[0]} (última manutenção: {m[3]})\n")
+
+        arq.write("\nQuantidade de manutenções:\n")
+        for nome, eventos in historico.items():
+            arq.write(f"- {nome}: {len(eventos)} registro(s)\n")
+
+    print("📄 Relatório gerado:", nome_arquivo)
+
+
+# -----------------------------
+# 5. MENU DO SISTEMA
+# -----------------------------
+def menu():
+    while True:
+        print("\n====== MENU PRINCIPAL ======")
+        print("1 - Listar máquinas")
+        print("2 - Registrar manutenção")
+        print("3 - Gerar relatório geral")
+        print("4 - Gerar relatório de custos")
+        print("5 - Sair")
+
+        op = input("Escolha: ")
+
+        if op == "1":
+            for m in maquinas:
+                print(m)
+
+        elif op == "2":
+            nome = input("Máquina: ")
+            desc = input("Descrição da manutenção: ")
+            adicionar_manutencao(nome, desc)
+
+        elif op == "3":
+            gerar_relatorio()
+
+        elif op == "4":
+            gerar_relatorio_custos()
+
+        elif op == "5":
+            print("Encerrando…")
+            break
+
+        else:
+            print("Opção inválida!")
+
+
+# -----------------------------
+# EXECUTAR MENU
+# -----------------------------
+menu()
+====== MENU PRINCIPAL ======
+1 - Listar máquinas
+2 - Registrar manutenção
+3 - Gerar relatório geral
+4 - Gerar relatório de custos
+5 - Sair
+['Torno CNC', 'operando', 72.5, '05/11/2025']
+['Prensa Hidráulica', 'parada', 30.0, '01/11/2025']
+['Compressor de Ar', 'operando', 45.0, '04/11/2025']
+['Retífica', 'operando', 60.0, '02/11/2025']
+
+====== MENU PRINCIPAL ======
+1 - Listar máquinas
+2 - Registrar manutenção
+3 - Gerar relatório geral
+4 - Gerar relatório de custos
+5 - Sair
+✔ Manutenção registrada! Custo somado: R$ 120.00
+
+====== MENU PRINCIPAL ======
+1 - Listar máquinas
+2 - Registrar manutenção
+3 - Gerar relatório geral
+4 - Gerar relatório de custos
+5 - Sair
