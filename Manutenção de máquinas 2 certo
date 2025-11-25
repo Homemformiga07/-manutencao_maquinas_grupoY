@@ -125,7 +125,7 @@ def gerar_relatorio(nome_arquivo="relatorio_final.txt"):
         for nome, eventos in historico.items():
             arq.write(f"- {nome}: {len(eventos)} registro(s)\n")
 
-    print("📄 Relatório gerado:", nome_arquivo)
+    print("Relatório gerado:", nome_arquivo)
 
 
 # -----------------------------
