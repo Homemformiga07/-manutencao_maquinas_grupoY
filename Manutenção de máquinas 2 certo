@@ -1,12 +1,12 @@
-# ============================================================
-#   SISTEMA DE MANUTENÇÃO DE MÁQUINAS - PROJETO INTEGRADOR
-#   Engenharia Mecânica - Computação 1
-#   Módulo Extra Escolhido: Custos de Manutenção
-# ============================================================
+# SISTEMA DE MANUTENÇÃO DE MÁQUINAS
+# Módulo extra: CUSTOS DE MANUTENÇÃO
+# Cole esta célula inteira no Colab e execute.
 
-# -----------------------------
-# 1. LISTA DE MÁQUINAS
-# -----------------------------
+from datetime import datetime
+
+DATE_FORMAT = "%d/%m/%Y"
+
+# dados iniciais
 maquinas = [
     ["Torno CNC", "operando", 72.5, "05/11/2025"],
     ["Prensa Hidráulica", "parada", 30.0, "01/11/2025"],
@@ -14,161 +14,246 @@ maquinas = [
     ["Retífica", "operando", 60.0, "02/11/2025"]
 ]
 
-# -----------------------------
-# 2. HISTÓRICO DE MANUTENÇÃO
-# -----------------------------
 historico = {
-    "Torno CNC": ["Troca de óleo - 01/11/2025", "Limpeza - 03/11/2025"],
-    "Prensa Hidráulica": ["Troca de mangueira - 02/11/2025"]
+    "Torno CNC": ["01/11/2025 - Troca de óleo", "03/11/2025 - Limpeza"],
+    "Prensa Hidráulica": ["02/11/2025 - Troca de mangueira"]
 }
 
-# -----------------------------
-# 3. MÓDULO EXTRA – CUSTOS
-# -----------------------------
+# custos padrões (módulo extra 2)
 custos = {
     "troca de óleo": 120.0,
     "limpeza": 60.0,
     "troca de rolamento": 300.0,
-    "troca de filtro": 80.0,
-    "regulagem": 50.0
+    "troca de mangueira": 150.0,
+    "troca de filtro": 80.0
 }
 
-custo_total = {}  # armazena custo acumulado por máquina
+# acumulador de custos por máquina
+custos_acumulados = {}
 
+# utilitários
+def hoje_str():
+    return datetime.today().strftime(DATE_FORMAT)
 
-def adicionar_manutencao(nome_maquina, descricao):
-    if nome_maquina not in historico:
-        historico[nome_maquina] = []
-    historico[nome_maquina].append(descricao)
+def limpa_string(s):
+    return s.strip()
 
-    # custo automático
-    servico = descricao.lower().split("-")[0].strip()
-    if servico in custos:
-        valor = custos[servico]
-    else:
-        valor = 100.0  # custo padrão caso seja algo novo
+# listar
+def listar_maquinas():
+    print("\nMáquinas cadastradas:")
+    for i, m in enumerate(maquinas, start=1):
+        print(f"{i}. {m[0]} | Status: {m[1]} | Temp: {m[2]}°C | Última: {m[3]}")
 
-    if nome_maquina not in custo_total:
-        custo_total[nome_maquina] = 0
-
-    custo_total[nome_maquina] += valor
-    print(f"✔ Manutenção registrada! Custo somado: R$ {valor:.2f}")
-
-
-def gerar_relatorio_custos(nome="custos_manutencao.txt"):
-    with open(nome, "w") as arq:
-        arq.write("RELATÓRIO DE CUSTOS DE MANUTENÇÃO\n\n")
-        total_geral = 0
-
-        for maquina, valor in custo_total.items():
-            arq.write(f"{maquina}: R$ {valor:.2f}\n")
-            total_geral += valor
-
-        arq.write("\nTOTAL GERAL: R$ {:.2f}\n".format(total_geral))
-
-    print("📄 Relatório gerado:", nome)
-
-
-# -----------------------------
-# 4. FUNÇÕES DO SISTEMA BASE
-# -----------------------------
+# registrar medição (robusto)
 def registrar_medicao(linha):
-    partes = linha.split(",")
-    nome = partes[0].strip()
-    temperatura = float(partes[1].strip())
-    status = partes[2].strip()
-
+    partes = [p.strip() for p in linha.split(",")]
+    if len(partes) < 3:
+        print("Erro: formato inválido. Use: nome, temperatura, status")
+        return
+    nome = partes[0]
+    try:
+        temperatura = float(partes[1])
+    except:
+        print("Erro: temperatura inválida.")
+        return
+    status = partes[2]
+    achou = False
     for m in maquinas:
-        if m[0] == nome:
+        if m[0].lower() == nome.lower():
             m[1] = status
             m[2] = temperatura
+            if status.lower() == "em manutenção":
+                m[3] = hoje_str()
+            achou = True
+            print(f"Atualizado: {m[0]}")
+            break
+    if not achou:
+        resp = input(f"Máquina '{nome}' não encontrada. Deseja adicionar? (s/n): ").strip().lower()
+        if resp == "s":
+            adicionar_maquina(nome, status, temperatura, hoje_str())
+
+def adicionar_maquina(nome, status="operando", temperatura=0.0, ultima=None):
+    ultima = ultima if ultima else hoje_str()
+    maquinas.append([nome, status, float(temperatura), ultima])
+    print(f"Máquina '{nome}' adicionada.")
+
+def adicionar_manutencao(nome_maquina, descricao, data=None, custo_manual=None):
+    # data padrão = hoje
+    data = data if data else hoje_str()
+    # adicionar no histórico
+    chave = None
+    # tenta encontrar a máquina com case-insensitive
+    for m in maquinas:
+        if m[0].lower() == nome_maquina.lower():
+            chave = m[0]
+            break
+    if chave is None:
+        # usa o nome informado como chave
+        chave = nome_maquina
+    if chave not in historico:
+        historico[chave] = []
+    historico[chave].append(f"{data} - {descricao}")
+    # atualiza última manutenção se existir na lista de máquinas
+    for m in maquinas:
+        if m[0].lower() == chave.lower():
+            m[3] = data
             break
 
+    # módulo extra: tentar detectar custo pela descrição
+    descricao_lower = descricao.lower()
+    custo_detectado = None
+    for termo, valor in custos.items():
+        if termo in descricao_lower:
+            custo_detectado = valor
+            break
+    # se custo_manual passado, usa ele (tem prioridade)
+    if custo_manual is not None:
+        try:
+            custo_detectado = float(custo_manual)
+        except:
+            pass
 
-def salvar_dados_maquinas(lista_maquinas, nome_arquivo="dados_maquinas.txt"):
-    with open(nome_arquivo, "w") as arq:
-        for m in lista_maquinas:
-            linha = f"{m[0]};{m[1]};{m[2]};{m[3]}\n"
-            arq.write(linha)
-    print("Dados salvos em", nome_arquivo)
+    if custo_detectado is not None:
+        custos_acumulados[chave] = custos_acumulados.get(chave, 0.0) + float(custo_detectado)
+        print(f"Custo registrado para '{chave}': R$ {custo_detectado:.2f}")
+    else:
+        print("Nenhum custo detectado automaticamente para essa manutenção (você pode registrar manualmente).")
 
-
-def carregar_dados_maquinas(nome_arquivo="dados_maquinas.txt"):
-    maquinas_lidas = []
+def salvar_dados_simples(nome_arquivo="dados_maquinas.txt"):
     try:
-        with open(nome_arquivo, "r") as arq:
-            for linha in arq:
-                partes = linha.strip().split(";")
-                nome = partes[0]
-                status = partes[1]
-                temperatura = float(partes[2])
-                ultima = partes[3]
-                maquinas_lidas.append([nome, status, temperatura, ultima])
-    except FileNotFoundError:
-        print("Arquivo não encontrado.")
-    return maquinas_lidas
-
+        with open(nome_arquivo, "w", encoding="utf-8") as f:
+            for m in maquinas:
+                f.write(f"{m[0]};{m[1]};{m[2]};{m[3]}\n")
+        print("Dados salvos em", nome_arquivo)
+    except Exception as e:
+        print("Erro ao salvar:", e)
 
 def gerar_relatorio(nome_arquivo="relatorio_final.txt"):
-    maquina_quente = max(maquinas, key=lambda x: x[2])
-
-    with open(nome_arquivo, "w") as arq:
-        arq.write("RELATÓRIO DE MÁQUINAS\n\n")
-        arq.write(f"Máquina mais quente: {maquina_quente[0]} ({maquina_quente[2]} °C)\n\n")
-
-        arq.write("Máquinas paradas ou em manutenção:\n")
-        for m in maquinas:
-            if m[1] in ["parada", "em manutenção"]:
-                arq.write(f"- {m[0]} (última manutenção: {m[3]})\n")
-
-        arq.write("\nQuantidade de manutenções:\n")
-        for nome, eventos in historico.items():
-            arq.write(f"- {nome}: {len(eventos)} registro(s)\n")
-
-    print("Relatório gerado:", nome_arquivo)
-
-
-# -----------------------------
-# 5. MENU DO SISTEMA
-# -----------------------------
-def menu():
-    while True:
-        print("\n====== MENU PRINCIPAL ======")
-        print("1 - Listar máquinas")
-        print("2 - Registrar manutenção")
-        print("3 - Gerar relatório geral")
-        print("4 - Gerar relatório de custos")
-        print("5 - Sair")
-
-        op = input("Escolha: ")
-
-        if op == "1":
+    try:
+        maquina_quente = max(maquinas, key=lambda x: x[2])
+    except ValueError:
+        print("Nenhuma máquina cadastrada.")
+        return
+    try:
+        with open(nome_arquivo, "w", encoding="utf-8") as arq:
+            arq.write("RELATÓRIO DE MÁQUINAS\n\n")
+            arq.write(f"Gerado em: {hoje_str()}\n\n")
+            arq.write(f"Máquina mais quente: {maquina_quente[0]} ({maquina_quente[2]} °C)\n\n")
+            arq.write("Máquinas em manutenção ou paradas:\n")
             for m in maquinas:
-                print(m)
+                if m[1].lower() in ["em manutenção", "parada"]:
+                    arq.write(f"- {m[0]} (última manutenção: {m[3]})\n")
+            arq.write("\nQuantidade de manutenções registradas:\n")
+            for nome, eventos in historico.items():
+                arq.write(f"- {nome}: {len(eventos)} registro(s)\n")
+        print("Relatório gerado:", nome_arquivo)
+    except Exception as e:
+        print("Erro ao gerar relatório:", e)
 
-        elif op == "2":
-            nome = input("Máquina: ")
-            desc = input("Descrição da manutenção: ")
-            adicionar_manutencao(nome, desc)
-
-        elif op == "3":
-            gerar_relatorio()
-
-        elif op == "4":
-            gerar_relatorio_custos()
-
-        elif op == "5":
-            print("Encerrando…")
+# Módulo extra: custos
+def modulo_custos_interativo():
+    while True:
+        print("\n=== Módulo de Custos de Manutenção ===")
+        print("1 - Ver custos padrão")
+        print("2 - Registrar manutenção com possível custo (tenta detectar custo)")
+        print("3 - Registrar custo manual para uma máquina")
+        print("4 - Ver custos acumulados por máquina")
+        print("5 - Gerar arquivo de custos (custos_manutencao.txt)")
+        print("6 - Voltar")
+        opc = input("Escolha: ").strip()
+        if opc == "1":
+            print("Custos padrão:")
+            for k, v in custos.items():
+                print(f"- {k}: R$ {v:.2f}")
+        elif opc == "2":
+            nome = input("Nome da máquina: ").strip()
+            desc = input("Descrição do serviço (ex: Troca de óleo): ").strip()
+            data = input(f"Data ({DATE_FORMAT}) [enter = hoje]: ").strip()
+            if data == "":
+                data = hoje_str()
+            adicionar_manutencao(nome, desc, data=data)
+        elif opc == "3":
+            nome = input("Nome da máquina: ").strip()
+            valor = input("Valor do custo (R$): ").strip()
+            try:
+                valor_f = float(valor)
+            except:
+                print("Valor inválido.")
+                continue
+            # registra custo sem alterar histórico (ou você pode pedir descrição)
+            custos_acumulados[nome] = custos_acumulados.get(nome, 0.0) + valor_f
+            print(f"Custo manual R$ {valor_f:.2f} adicionado em {nome}.")
+        elif opc == "4":
+            if not custos_acumulados:
+                print("Nenhum custo registrado ainda.")
+            else:
+                for nome, total in custos_acumulados.items():
+                    print(f"- {nome}: R$ {total:.2f}")
+        elif opc == "5":
+            try:
+                with open("custos_manutencao.txt", "w", encoding="utf-8") as arq:
+                    arq.write("RELATÓRIO DE CUSTOS DE MANUTENÇÃO\n\n")
+                    arq.write(f"Gerado em: {hoje_str()}\n\n")
+                    soma = 0.0
+                    for nome, total in custos_acumulados.items():
+                        arq.write(f"- {nome}: R$ {total:.2f}\n")
+                        soma += total
+                    arq.write(f"\nCUSTO TOTAL: R$ {soma:.2f}\n")
+                print("Arquivo 'custos_manutencao.txt' gerado.")
+            except Exception as e:
+                print("Erro ao gerar arquivo:", e)
+        elif opc == "6":
             break
-
         else:
-            print("Opção inválida!")
+            print("Opção inválida.")
 
+# menu principal (loop)
+def main():
+    while True:
+        print("\n=== Sistema de Manutenção de Máquinas ===")
+        print("1 - Listar máquinas")
+        print("2 - Registrar medição (formato: nome, temperatura, status)")
+        print("3 - Adicionar manutenção (manual)")
+        print("4 - Salvar dados em arquivo")
+        print("5 - Gerar relatório geral")
+        print("6 - Módulo Extra: Custos de manutenção")
+        print("7 - Sair")
+        opc = input("Escolha: ").strip()
+        if opc == "1":
+            listar_maquinas()
+        elif opc == "2":
+            linha = input("Digite (ex: Torno CNC, 78.5, operando): ").strip()
+            registrar_medicao(linha)
+        elif opc == "3":
+            nome = input("Nome da máquina: ").strip()
+            desc = input("Descrição do serviço: ").strip()
+            data = input(f"Data ({DATE_FORMAT}) [enter = hoje]: ").strip()
+            if data == "":
+                data = hoje_str()
+            custo = input("Custo (opcional, deixe vazio se não): ").strip()
+            if custo != "":
+                try:
+                    custo_val = float(custo)
+                except:
+                    custo_val = None
+            else:
+                custo_val = None
+            adicionar_manutencao(nome, desc, data=data, custo_manual=custo_val)
+        elif opc == "4":
+            salvar_dados_simples()
+        elif opc == "5":
+            gerar_relatorio()
+        elif opc == "6":
+            modulo_custos_interativo()
+        elif opc == "7":
+            print("Saindo. Não esqueça de salvar os arquivos se quiser persistir.")
+            break
+        else:
+            print("Opção inválida. Tente novamente.")
 
-# -----------------------------
-# EXECUTAR MENU
-# -----------------------------
-menu()
+# Chama o main automaticamente ao executar a célula no Colab:
+if __name__ == "__main__":
+    main()
 
 LINK DE ACESSO PARA O COLAB ABAIXO 
-https://colab.research.google.com/drive/1J73VYqTsjKykmYVXLuYyZJa06A0FDPw5?authuser=0#scrollTo=pY_ULTQiHrXl
+https://colab.research.google.com/drive/1J73VYqTsjKykmYVXLuYyZJa06A0FDPw5?authuser=0#scrollTo=ZDlsZh4LDVjH
